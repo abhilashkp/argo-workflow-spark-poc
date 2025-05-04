@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: spark-print-template
+spec:
+  entrypoint: spark-print-params
+  arguments:
+    parameters:
+      - name: param1
+      - name: param2
+  templates:
+    - name: spark-print-params
+      inputs:
+        parameters:
+          - name: param1
+          - name: param2
+      resource:
+        action: create
+        manifest: |
+          apiVersion: sparkoperator.k8s.io/v1beta2
+          kind: SparkApplication
+          metadata:
+            name: spark-print-params-{{workflow.uid}}
+            namespace: default
+          spec:
+            type: Python
+            mode: cluster
+            image: abhilash2018/spark-py-app
+            imagePullPolicy: Always
+            mainApplicationFile: local:///app/print_params.py
+            sparkVersion: "3.1.1"
+            restartPolicy:
+              type: Never
+            driver:
+              cores: 1
+              coreLimit: "1200m"
+              memory: "1g"
+              serviceAccount: spark-operator-spark
+            executor:
+              cores: 1
+              instances: 1
+              memory: "1g"
+            arguments:
+              - "{{inputs.parameters.param1}}"
+              - "{{inputs.parameters.param2}}"

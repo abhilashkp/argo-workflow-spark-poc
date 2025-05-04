@@ -1,0 +1,9 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: argo-full-access
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflows", "workflowtaskresults", "workflowtemplates", "cronworkflows"]
+    verbs: ["*"]

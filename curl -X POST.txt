@@ -1,0 +1,29 @@
+curl -X POST \
+  http://localhost:2746/api/v1/workflows/default/submit \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IkRoQ1kzX1VaWmNpNll5azBvY2tNazNqMFppTnd2WThHQ3dkZkVUNTBGZ28ifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiLCJrM3MiXSwiZXhwIjoxNzQ1OTE0MDY0LCJpYXQiOjE3NDU5MTA0NjQsImlzcyI6Imh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiwianRpIjoiMjAwMDU1MzctODZkMC00YjU0LWFkMzAtZWU5YzFjOGE5YWVjIiwia3ViZXJuZXRlcy5pbyI6eyJuYW1lc3BhY2UiOiJhcmdvIiwic2VydmljZWFjY291bnQiOnsibmFtZSI6ImFyZ28tYXJnby13b3JrZmxvd3Mtc2VydmVyIiwidWlkIjoiNjZlOTlkMDQtZjY4Zi00YTMzLThlYzEtODQ2YjhmM2I3MzYzIn19LCJuYmYiOjE3NDU5MTA0NjQsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDphcmdvOmFyZ28tYXJnby13b3JrZmxvd3Mtc2VydmVyIn0.wobUd97Z17VqGFMAGDYCxuM-wC3Q6ZD2COCcmi9B3plKN5lP5epof5gouCcMHyShS-urGZ2Q-9LYF3ZiLFMoCquWf73Scd8DSFmpFOWqlyDR7TCXt87U0fMPzP2qA_g4QNBHlwRWsNl7sOoJngjDDqsmzqNCucSrHdRwCOWkmbx4DPvEuwq7XDBnEpcqVDrwZaBfcoR1QEnGILFLHHiYr2WZs4PW9Y88NAIxWH_QzrFbbFLpc9iAk7iOxA8VTPFFkGfL2oWtbU4rwDyEHGKIJI_TbKtTV2og_MeVgDPDE90sszXtANWLY4bCcSMCcOv7YBHD3kpBkR1B01paV0kO0g" \
+  -d '{
+    "namespace": "default",
+    "resourceKind": "WorkflowTemplate",
+    "resourceName": "spark-print-template",
+    "submitOptions": {
+      "parameters": [
+        "param1=hello",
+        "param2=world"
+      ]
+    }
+  }'
+
+ kubectl -n argo create token argo-argo-workflows-server
+
+ curl -X POST http://localhost:2746/api/v1/workflows/default/submit \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IkRoQ1kzX1VaWmNpNll5azBvY2tNazNqMFppTnd2WThHQ3dkZkVUNTBGZ28ifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiLCJrM3MiXSwiZXhwIjoxNzQ1OTE2NjY5LCJpYXQiOjE3NDU5MTMwNjksImlzcyI6Imh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiwianRpIjoiMzY3NTk5MzMtZjJjYS00ZTk5LTgxOTYtNGU1M2M0MzY0Y2E2Iiwia3ViZXJuZXRlcy5pbyI6eyJuYW1lc3BhY2UiOiJhcmdvIiwic2VydmljZWFjY291bnQiOnsibmFtZSI6ImFyZ28tYXJnby13b3JrZmxvd3Mtc2VydmVyIiwidWlkIjoiNjZlOTlkMDQtZjY4Zi00YTMzLThlYzEtODQ2YjhmM2I3MzYzIn19LCJuYmYiOjE3NDU5MTMwNjksInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDphcmdvOmFyZ28tYXJnby13b3JrZmxvd3Mtc2VydmVyIn0.IsBFTbDMLd3XZm8gwfnK7Ms9dxERSdqhoanzQjXbtFDyrc73JZmqnRifxGx-fD9D-xBo1pXsqWqBxhk6WvakJ6QpRNRGC5iVa5B_qH4c7Uzf4UJ4YZ_ygqwkJOqjn3wllUUA5lcUpzUpcTFmFv4Y6ibzkjFtznHdqMei0u0E7jxWmG4Kc3yve6pYmeOTfuQ9yjfMcO8YrGkntXnPnQoV9Pc4yzNmuiLY_idFPUMWfZwVEbdZLDFgT33f6EEJowsmKunvznsZW4BneW8RXf95bTe_thnlK9r4fuY1sLrJFpbq49c0H3nr00uJS_wTAAU4DgZ441SW8CLZAm5fm5YQdg" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "namespace": "default",
+    "resourceKind": "WorkflowTemplate",
+    "resourceName": "spark-py-job-argo",
+    "submitOptions": {
+      "generateName": "spark-py-job-argo-run-"
+    }
+  }'

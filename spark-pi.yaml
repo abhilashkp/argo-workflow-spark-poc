@@ -1,0 +1,28 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: spark-py-job
+  namespace: default
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  mainApplicationFile: local:///opt/spark/pi.py
+  image: abhilash2018/spark-py-app
+  imagePullPolicy: IfNotPresent
+  sparkConf:
+    spark.ui.port: "4040"
+  sparkVersion: 3.5.5
+  driver:
+    labels:
+      version: 3.5.5
+    cores: 1
+    memory: 512m
+    serviceAccount: spark-operator-spark
+  executor:
+    labels:
+      version: 3.5.5
+    instances: 1
+    cores: 1
+    memory: 512m
+  
