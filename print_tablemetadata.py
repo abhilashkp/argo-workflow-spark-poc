@@ -9,13 +9,13 @@ args = parser.parse_args()
 
 # Parse the JSON metadata array
 try:
-    metadata_list = json.loads(args.metadata)
+    metadata_list = json.loads(args.metadataconfig)
 except json.JSONDecodeError:
     print("Error: Invalid JSON provided for --metadata")
     exit(1)
 
 # Print the SAS token
-print(f"SAS Token: {args.sas_token}")
+print(f"SAS Token: {args.sastoken}")
 
 # Print the metadata
 print("Metadata:")
