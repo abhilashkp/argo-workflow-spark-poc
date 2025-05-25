@@ -4,6 +4,7 @@ import argparse
 import os
 import urllib.parse
 from pyspark.sql import SparkSession
+# from py4j.java_gateway import java_import
 
 def set_sas_token(spark, sas_token, account, container):
     decoded_token = urllib.parse.unquote(sas_token)
@@ -84,10 +85,10 @@ def main():
     fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(hadoop_conf)
     spark_path = spark._jvm.org.apache.hadoop.fs.Path
 
-    if fs.exists(spark_path(final_path)):
-        fs.delete(spark_path(final_path), True)
-    if fs.exists(spark_path(temp_dir)):
-        fs.delete(spark_path(temp_dir), True)
+    # if fs.exists(spark_path(final_path)):
+    #     fs.delete(spark_path(final_path), True)
+    # if fs.exists(spark_path(temp_dir)):
+    #     fs.delete(spark_path(temp_dir), True)
 
     # Write to temp directory as a single part file
     df.coalesce(1).write.text(temp_dir)
