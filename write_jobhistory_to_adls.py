@@ -7,26 +7,10 @@ from pyspark.sql import SparkSession
 # from py4j.java_gateway import java_import
 
 def set_sas_token(spark, sas_token, storage_account, container):
-    decoded_token = urllib.parse.unquote(sas_token)
-    formatted_token = f"?{decoded_token}"
-    print(f"🔑 Decoded SAS token: {decoded_token}")
-
-    # conf_key = f"fs.azure.sas.{container}.{account}.dfs.core.windows.net"
-    # spark._jsc.hadoopConfiguration().set(conf_key, decoded_token)
     print(f"🔐 Setting SAS token for {container} in {storage_account}...")
-    
-
-    # spark.conf.set("fs.azure.account.auth.type.{storage_account}.dfs.core.windows.net", "SAS")
-    # spark.conf.set("fs.azure.sas.token.provider.type.{storage_account}.dfs.core.windows.net", "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider")
-    # spark.conf.set("fs.azure.sas.fixed.token.{storage_account}.dfs.core.windows.net", decoded_token)
-    # spark.conf.set("fs.azure.sas.{container}.{storage_account}.dfs.core.windows.net",decoded_token)
-
     spark.conf.set(f"fs.azure.account.auth.type.{storage_account}.dfs.core.windows.net", "SAS")
     spark.conf.set(f"fs.azure.sas.token.provider.type.{storage_account}.dfs.core.windows.net", "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider")
-    # spark.conf.set(f"fs.azure.sas.{container}.{storage_account}.dfs.core.windows.net", formatted_token)
     spark.conf.set(f"fs.azure.sas.fixed.token.{storage_account}.dfs.core.windows.net", sas_token)
-    # spark._jsc.hadoopConfiguration().set(f"fs.azure.sas.{container}.{storage_account}.dfs.core.windows.net",formatted_token)
-
 
     # resolved_cid: str = '695ae555-406e-41f4-93c1-5b85d68c5009'
     # resolved_cpwd: str = 'abAF2y_UEl2_aT5lj332~Cz.9_etM9HF8.'
@@ -105,12 +89,11 @@ def main():
         df = spark.createDataFrame([job_run])
     # Write JSON directly to final_path, overwrite if exists
         df.coalesce(1).write.mode("overwrite").json(final_path)
+        print(f"🎉 Job run log written to: {final_path}")
     except Exception as e:
         import traceback
         print("❌ Error while writing to ADLS:")
         traceback.print_exc()
-
-    print(f"🎉 Job run log written to: {final_path}")
 
 if __name__ == "__main__":
     main()
