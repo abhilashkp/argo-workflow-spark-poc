@@ -10,6 +10,10 @@ def set_sas_token(spark, sas_token, account, container):
     decoded_token = urllib.parse.unquote(sas_token)
     conf_key = f"fs.azure.sas.{container}.{account}.dfs.core.windows.net"
     spark._jsc.hadoopConfiguration().set(conf_key, decoded_token)
+    spark.conf.set(
+    "fs.azure.sas.table-maint-job-results.bmdatalaketest.dfs.core.windows.net",
+    sas_token
+    )
     print(f"✅ Set Spark Hadoop config {conf_key}")
 
 def main():
