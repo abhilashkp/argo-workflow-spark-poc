@@ -8,6 +8,8 @@ from pyspark.sql import SparkSession
 
 def set_sas_token(spark, sas_token, storage_account, container):
     decoded_token = urllib.parse.unquote(sas_token)
+    formatted_token = f"?{decoded_token}"
+
     # conf_key = f"fs.azure.sas.{container}.{account}.dfs.core.windows.net"
     # spark._jsc.hadoopConfiguration().set(conf_key, decoded_token)
     print(f"🔐 Setting SAS token for {container} in {storage_account}...")
@@ -17,7 +19,7 @@ def set_sas_token(spark, sas_token, storage_account, container):
     # )
     spark.conf.set("fs.azure.account.auth.type.bmdatalaketest.dfs.core.windows.net", "SAS")
     spark.conf.set("fs.azure.sas.token.provider.type.bmdatalaketest.dfs.core.windows.net", "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider")
-    spark.conf.set("fs.azure.sas.fixed.token.bmdatalaketest.dfs.core.windows.net", decoded_token)
+    spark.conf.set("fs.azure.sas.fixed.token.bmdatalaketest.dfs.core.windows.net", formatted_token)
     # spark.conf.set(f"fs.azure.account.auth.type.{storage_account}.dfs.core.windows.net", "OAuth")
     # spark.conf.set(f"fs.azure.account.oauth.provider.type.{storage_account}.dfs.core.windows.net",
     #            "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider")
