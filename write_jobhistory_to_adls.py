@@ -95,12 +95,17 @@ def main():
     app_name = os.getenv("APP_NAME", "default-spark-app")
     print(f"📦 App Name: {app_name}")
     final_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/abcd.json"
-
+    try:
     # Create DataFrame directly from dictionary (wrap in list to make a single-row DF)
-    df = spark.createDataFrame([job_run])
+        df = spark.createDataFrame([job_run])
+
 
     # Write JSON directly to final_path, overwrite if exists
-    df.coalesce(1).write.mode("overwrite").json(final_path)
+        df.coalesce(1).write.mode("overwrite").json(final_path)
+    except Exception as e:
+        import traceback
+        print("❌ Error while writing to ADLS:")
+        traceback.print_exc()
 
     print(f"🎉 Job run log written to: {final_path}")
 
