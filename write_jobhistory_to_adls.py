@@ -7,8 +7,8 @@ from pyspark.sql import SparkSession
 # from py4j.java_gateway import java_import
 
 def set_sas_token(spark, sas_token, storage_account, container):
-    decoded_token = urllib.parse.unquote(sas_token)
-    formatted_token = f"?{decoded_token}"
+    # decoded_token = urllib.parse.unquote(sas_token)
+    # formatted_token = f"?{decoded_token}"
 
     # conf_key = f"fs.azure.sas.{container}.{account}.dfs.core.windows.net"
     # spark._jsc.hadoopConfiguration().set(conf_key, decoded_token)
@@ -39,8 +39,6 @@ def main():
     parser.add_argument("--sastoken", required=True, help="SAS token for ADLS access")
     args = parser.parse_args()
     sas_token = args.sastoken
-    print("🔐 Full SAS Token:", sas_token)
-
     # ADLS configuration
     storage_account_name = "bmdatalaketest"
     container_name = "table-maint-job-results"
@@ -94,12 +92,10 @@ def main():
 
     app_name = os.getenv("APP_NAME", "default-spark-app")
     print(f"📦 App Name: {app_name}")
-    final_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/abcd.json"
+    final_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/{app_name}.json"
     try:
     # Create DataFrame directly from dictionary (wrap in list to make a single-row DF)
         df = spark.createDataFrame([job_run])
-
-
     # Write JSON directly to final_path, overwrite if exists
         df.coalesce(1).write.mode("overwrite").json(final_path)
     except Exception as e:
