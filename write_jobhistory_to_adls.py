@@ -9,6 +9,7 @@ from pyspark.sql import SparkSession
 def set_sas_token(spark, sas_token, storage_account, container):
     decoded_token = urllib.parse.unquote(sas_token)
     # formatted_token = f"?{decoded_token}"
+    print(f"🔑 Decoded SAS token: {decoded_token}")
 
     # conf_key = f"fs.azure.sas.{container}.{account}.dfs.core.windows.net"
     # spark._jsc.hadoopConfiguration().set(conf_key, decoded_token)
@@ -22,7 +23,7 @@ def set_sas_token(spark, sas_token, storage_account, container):
 
     spark.conf.set(f"fs.azure.account.auth.type.{storage_account}.dfs.core.windows.net", "SAS")
     spark.conf.set(f"fs.azure.sas.token.provider.type.{storage_account}.dfs.core.windows.net", "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider")
-    spark.conf.set(f"fs.azure.sas.{container}.{storage_account}.dfs.core.windows.net", decoded_token)
+    spark.conf.set(f"fs.azure.sas.{container}.{storage_account}.dfs.core.windows.net", sas_token)
 
 
     # resolved_cid: str = '695ae555-406e-41f4-93c1-5b85d68c5009'
