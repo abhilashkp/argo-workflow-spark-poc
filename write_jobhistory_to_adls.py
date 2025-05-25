@@ -9,7 +9,8 @@ def main():
     parser = argparse.ArgumentParser(description="Write job run log to ADLS")
     parser.add_argument("--sastoken", required=True, help="SAS token for ADLS access")
     args = parser.parse_args()
-    sas_token = args.sas_token
+    sas_token = args.sastoken
+    print("🔐 Full SAS Token:", sas_token)
 
     # Config values
     storage_account_name = "bmdatalaketest"
@@ -19,7 +20,7 @@ def main():
     # Create service client
     service_client = DataLakeServiceClient(
         account_url=f"https://{storage_account_name}.dfs.core.windows.net",
-        credential=sas_token
+        credential=f"?{sas_token}"
     )
     file_system_client = service_client.get_file_system_client(file_system=container_name)
 
