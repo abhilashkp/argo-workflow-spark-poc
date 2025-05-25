@@ -8,7 +8,7 @@ from pyspark.sql import SparkSession
 
 def set_sas_token(spark, sas_token, storage_account, container):
     decoded_token = urllib.parse.unquote(sas_token)
-    formatted_token = f"?{sas_token}"
+    formatted_token = f"?{decoded_token}"
     print(f"🔑 Decoded SAS token: {decoded_token}")
 
     # conf_key = f"fs.azure.sas.{container}.{account}.dfs.core.windows.net"
