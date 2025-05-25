@@ -6,15 +6,17 @@ import urllib.parse
 from pyspark.sql import SparkSession
 # from py4j.java_gateway import java_import
 
-def set_sas_token(spark, sas_token, account, container):
+def set_sas_token(spark, sas_token, storageaccount, container):
     decoded_token = urllib.parse.unquote(sas_token)
-    conf_key = f"fs.azure.sas.{container}.{account}.dfs.core.windows.net"
-    spark._jsc.hadoopConfiguration().set(conf_key, decoded_token)
+    # conf_key = f"fs.azure.sas.{container}.{account}.dfs.core.windows.net"
+    # spark._jsc.hadoopConfiguration().set(conf_key, decoded_token)
+    print(storageaccount)
+    print(container)
     spark.conf.set(
     "fs.azure.sas.table-maint-job-results.bmdatalaketest.dfs.core.windows.net",
-    sas_token
+    decoded_token
     )
-    print(f"✅ Set Spark Hadoop config {conf_key}")
+    # print(f"✅ Set Spark Hadoop config {conf_key}")
 
 def main():
     # Argument parsing
@@ -75,41 +77,14 @@ def main():
         ]
     }
 
-    # Compose paths
     app_name = os.getenv("APP_NAME", "default-spark-app")
-    temp_dir = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/temp_{app_name}"
     final_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/{app_name}.json"
 
-    # Write job_run JSON as text
-    json_str = json.dumps(job_run)
-    df = spark.createDataFrame([json_str], "string")
+    # Create DataFrame directly from dictionary (wrap in list to make a single-row DF)
+    df = spark.createDataFrame([job_run])
 
-    # Delete if exists (both temp and final)
-    hadoop_conf = spark._jsc.hadoopConfiguration()
-    fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(hadoop_conf)
-    spark_path = spark._jvm.org.apache.hadoop.fs.Path
-
-    # if fs.exists(spark_path(final_path)):
-    #     fs.delete(spark_path(final_path), True)
-    # if fs.exists(spark_path(temp_dir)):
-    #     fs.delete(spark_path(temp_dir), True)
-
-    # Write to temp directory as a single part file
-    df.coalesce(1).write.text(temp_dir)
-    print(f"✅ Wrote intermediate file to: {temp_dir}")
-
-    # Move part file to final destination as app_name.json
-    file_status = fs.listStatus(spark_path(temp_dir))
-    for status in file_status:
-        name = status.getPath().getName()
-        if name.startswith("part-") and name.endswith(".txt"):
-            part_file_path = status.getPath()
-            fs.rename(part_file_path, spark_path(final_path))
-            print(f"✅ Renamed {part_file_path} to {final_path}")
-            break
-
-    # Cleanup temp directory
-    fs.delete(spark_path(temp_dir), True)
+    # Write JSON directly to final_path, overwrite if exists
+    df.coalesce(1).write.mode("overwrite").json(final_path)
 
     print(f"🎉 Job run log written to: {final_path}")
 
