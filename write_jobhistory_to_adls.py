@@ -93,7 +93,8 @@ def main():
     }
 
     app_name = os.getenv("APP_NAME", "default-spark-app")
-    final_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/{app_name}.json"
+    print(f"📦 App Name: {app_name}")
+    final_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/abcd.json"
 
     # Create DataFrame directly from dictionary (wrap in list to make a single-row DF)
     df = spark.createDataFrame([job_run])
