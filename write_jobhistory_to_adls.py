@@ -20,8 +20,8 @@ def set_sas_token(spark, sas_token, storage_account, container):
     # spark.conf.set("fs.azure.sas.fixed.token.{storage_account}.dfs.core.windows.net", decoded_token)
     # spark.conf.set("fs.azure.sas.{container}.{storage_account}.dfs.core.windows.net",decoded_token)
 
-    spark.conf.set("fs.azure.account.auth.type.{storage_account}.dfs.core.windows.net", "SAS")
-    spark.conf.set("fs.azure.sas.{container}.{storage_account}.dfs.core.windows.net", decoded_token)
+    spark.conf.set(f"fs.azure.account.auth.type.{storage_account}.dfs.core.windows.net", "SAS")
+    spark.conf.set(f"fs.azure.sas.{container}.{storage_account}.dfs.core.windows.net", decoded_token)
 
 
     # resolved_cid: str = '695ae555-406e-41f4-93c1-5b85d68c5009'
