@@ -1,30 +1,36 @@
 import json
 from datetime import datetime, timedelta
-from azure.storage.filedatalake import DataLakeServiceClient
 import argparse
 import os
+import urllib.parse
+from pyspark.sql import SparkSession
+
+def set_sas_token(spark, sas_token, account, container):
+    decoded_token = urllib.parse.unquote(sas_token)
+    conf_key = f"fs.azure.sas.{container}.{account}.dfs.core.windows.net"
+    spark._jsc.hadoopConfiguration().set(conf_key, decoded_token)
+    print(f"✅ Set Spark Hadoop config {conf_key}")
 
 def main():
     # Argument parsing
-    parser = argparse.ArgumentParser(description="Write job run log to ADLS")
+    parser = argparse.ArgumentParser(description="Write job run log to ADLS via Spark")
     parser.add_argument("--sastoken", required=True, help="SAS token for ADLS access")
     args = parser.parse_args()
     sas_token = args.sastoken
     print("🔐 Full SAS Token:", sas_token)
 
-    # Config values
+    # ADLS configuration
     storage_account_name = "bmdatalaketest"
     container_name = "table-maint-job-results"
     directory_path = "job-runs"
 
-    # Create service client
-    service_client = DataLakeServiceClient(
-        account_url=f"https://{storage_account_name}.dfs.core.windows.net",
-        credential=f"?{sas_token}"
-    )
-    file_system_client = service_client.get_file_system_client(file_system=container_name)
+    # Initialize Spark session
+    spark = SparkSession.builder.appName("JobHistoryWriter").getOrCreate()
 
-    # Generate job metadata timestamps
+    # Set SAS token in Hadoop config
+    set_sas_token(spark, sas_token, storage_account_name, container_name)
+
+    # Generate job metadata
     now = datetime.utcnow()
     start_time = now
     end_time = now + timedelta(minutes=6, seconds=30)
@@ -64,25 +70,26 @@ def main():
         ]
     }
 
-    # Create directory if not exists
-    directory_client = file_system_client.get_directory_client(directory_path)
-    try:
-        directory_client.create_directory()
-    except Exception as e:
-        # Directory might already exist — ignore or log
-        pass
-
+    # Compose the file path
     app_name = os.getenv("APP_NAME", "default-spark-app")
     file_name = f"{app_name}.json"
+    file_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/{file_name}"
 
-    # Create file client and write JSON data
-    file_client = directory_client.get_file_client(file_name)
+    # Create RDD with JSON content
     file_contents = json.dumps(job_run, indent=2)
-    file_client.create_file()
-    file_client.append_data(data=file_contents, offset=0, length=len(file_contents))
-    file_client.flush_data(len(file_contents))
+    rdd = spark.sparkContext.parallelize([file_contents])
 
-    print(f"✅ Job run log written to: {directory_path}/{file_name}")
+    # Overwrite existing file (optional)
+    hadoop_conf = spark._jsc.hadoopConfiguration()
+    fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(hadoop_conf)
+    path = spark._jvm.org.apache.hadoop.fs.Path(file_path)
+    if fs.exists(path):
+        fs.delete(path, True)
+
+    # Write JSON as text file (single part file)
+    rdd.coalesce(1).saveAsTextFile(file_path)
+
+    print(f"✅ Job run log written to: {file_path}")
 
 if __name__ == "__main__":
     main()

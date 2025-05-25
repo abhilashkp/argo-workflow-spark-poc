@@ -1,0 +1,3 @@
+destination_repo_base: nexus/ds/spark_iceberg_base
+destination_repo_test: nexus/ds/spark_iceberg_test
+version: 0.0.4

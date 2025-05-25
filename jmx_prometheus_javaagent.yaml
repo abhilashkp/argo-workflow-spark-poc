@@ -1,0 +1,3 @@
+# jmx_prometheus_javaagent.yaml
+rules:
+  - pattern: ".*"          # Exposes all JMX metrics. You can be more selective to limit specific metrics.
