@@ -70,26 +70,43 @@ def main():
         ]
     }
 
-    # Compose the file path
+    # Compose paths
     app_name = os.getenv("APP_NAME", "default-spark-app")
-    file_name = f"{app_name}.json"
-    file_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/{file_name}"
+    temp_dir = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/temp_{app_name}"
+    final_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/{app_name}.json"
 
-    # Create RDD with JSON content
-    file_contents = json.dumps(job_run, indent=2)
-    rdd = spark.sparkContext.parallelize([file_contents])
+    # Write job_run JSON as text
+    json_str = json.dumps(job_run)
+    df = spark.createDataFrame([json_str], "string")
 
-    # Overwrite existing file (optional)
+    # Delete if exists (both temp and final)
     hadoop_conf = spark._jsc.hadoopConfiguration()
     fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(hadoop_conf)
-    path = spark._jvm.org.apache.hadoop.fs.Path(file_path)
-    if fs.exists(path):
-        fs.delete(path, True)
+    spark_path = spark._jvm.org.apache.hadoop.fs.Path
 
-    # Write JSON as text file (single part file)
-    rdd.coalesce(1).saveAsTextFile(file_path)
+    if fs.exists(spark_path(final_path)):
+        fs.delete(spark_path(final_path), True)
+    if fs.exists(spark_path(temp_dir)):
+        fs.delete(spark_path(temp_dir), True)
 
-    print(f"✅ Job run log written to: {file_path}")
+    # Write to temp directory as a single part file
+    df.coalesce(1).write.text(temp_dir)
+    print(f"✅ Wrote intermediate file to: {temp_dir}")
+
+    # Move part file to final destination as app_name.json
+    file_status = fs.listStatus(spark_path(temp_dir))
+    for status in file_status:
+        name = status.getPath().getName()
+        if name.startswith("part-") and name.endswith(".txt"):
+            part_file_path = status.getPath()
+            fs.rename(part_file_path, spark_path(final_path))
+            print(f"✅ Renamed {part_file_path} to {final_path}")
+            break
+
+    # Cleanup temp directory
+    fs.delete(spark_path(temp_dir), True)
+
+    print(f"🎉 Job run log written to: {final_path}")
 
 if __name__ == "__main__":
     main()
