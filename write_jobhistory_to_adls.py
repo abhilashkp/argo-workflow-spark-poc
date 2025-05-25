@@ -9,7 +9,7 @@ def main():
     parser = argparse.ArgumentParser(description="Write job run log to ADLS")
     parser.add_argument("--sastoken", required=True, help="SAS token for ADLS access")
     args = parser.parse_args()
-    sas_token = args.sas_token
+    sas_token = args.sastoken
 
     # Config values
     storage_account_name = "bmdatalaketest"

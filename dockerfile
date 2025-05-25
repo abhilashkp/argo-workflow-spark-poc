@@ -4,7 +4,7 @@ USER root
 
 # Install necessary dependencies
 RUN pip install pyspark
-# RUN pip install azure-storage-file-datalake
+RUN pip install azure-storage-file-datalake
 
 
 # Create necessary directory for your script
