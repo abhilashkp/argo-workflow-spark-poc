@@ -34,9 +34,10 @@ def main():
     storage_account_name = "bmdatalaketest"
     container_name = "table-maint-job-results"
     directory_path = "job-runs"
-
+    app_name = os.getenv("APP_NAME", "default-spark-app")
+    print(f"📦 App Name: {app_name}")
     # Initialize Spark session
-    spark = SparkSession.builder.appName("JobHistoryWriter").getOrCreate()
+    spark = SparkSession.builder.appName(app_name).getOrCreate()
 
     # Set SAS token in Hadoop config
     set_sas_token(spark, sas_token, storage_account_name, container_name)
@@ -80,9 +81,7 @@ def main():
             }
         ]
     }
-
-    app_name = os.getenv("APP_NAME", "default-spark-app")
-    print(f"📦 App Name: {app_name}")
+    
     final_path = f"abfss://{container_name}@{storage_account_name}.dfs.core.windows.net/{directory_path}/{app_name}.json"
     try:
     # Create DataFrame directly from dictionary (wrap in list to make a single-row DF)
