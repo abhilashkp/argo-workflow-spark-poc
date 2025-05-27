@@ -49,7 +49,7 @@ def main():
 
     job_run = {
         "tenantId": "tenant-001",
-        "appName": {app_name},
+        "appName": app_name,
         "startTime": start_time.isoformat(timespec='seconds') + "Z",
         "endTime": end_time.isoformat(timespec='seconds') + "Z",
         "status": "partial_success",
