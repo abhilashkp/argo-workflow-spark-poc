@@ -49,14 +49,14 @@ def main():
 
     job_run = {
         "tenantId": "tenant-001",
-        "appName": "spark-table-maintenance",
+        "appName": {app_name},
         "startTime": start_time.isoformat(timespec='seconds') + "Z",
         "endTime": end_time.isoformat(timespec='seconds') + "Z",
         "status": "partial_success",
         "details": "Snapshot expiration succeeded, but compaction failed.",
         "operations": [
             {
-                "type": "SnapshotExpiration",
+                "operation": "SnapshotExpiration",
                 "status": "success",
                 "details": "Expired snapshots for 1 table.",
                 "startTime": start_time.isoformat(timespec='seconds') + "Z",
@@ -64,7 +64,7 @@ def main():
                 "data": {"dataproduct": "marketing", "tables": ["campaigns"]}
             },
             {
-                "type": "Compaction",
+                "operation": "Compaction",
                 "status": "failure",
                 "details": "Compaction failed due to permission issue.",
                 "startTime": (start_time + timedelta(minutes=1, seconds=30)).isoformat(timespec='seconds') + "Z",
@@ -72,7 +72,7 @@ def main():
                 "data": {"dataproduct": "marketing", "numberOfFiles": 30}
             },
             {
-                "type": "OrphanFiles",
+                "operation": "OrphanFiles",
                 "status": "success",
                 "details": "Identified and deleted orphan files.",
                 "startTime": (start_time + timedelta(minutes=4)).isoformat(timespec='seconds') + "Z",
