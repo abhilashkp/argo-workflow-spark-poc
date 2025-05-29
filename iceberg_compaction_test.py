@@ -189,8 +189,9 @@ def main():
     args = parser.parse_args()
  
     try:
-        with open(args.config, 'r') as f:
-            data_product_conf = json.load(f)
+        # with open(args.config, 'r') as f:
+        #     data_product_conf = json.loads(f)
+        data_product_conf = json.loads(args.config)
         validate_config(data_product_conf)
     except Exception as e:
         logging.error(f"Error loading or validating config file: {str(e)}")
