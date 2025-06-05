@@ -1,0 +1,32 @@
+{
+  "catalog": {
+    "name": "spark_catalog",
+    "type": "hadoop",
+    "warehouse": "abfs://iceberg-data@tblmainticebergstorage.dfs.core.windows.net/finance"
+  },
+  "database": "bronze",
+  "table": "sales_transactions",
+  "schema": [
+    {
+      "name": "item",
+      "type": "string"
+    },
+    {
+      "name": "qty",
+      "type": "int"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    }
+  ],
+  "location": "abfs://iceberg-data@tblmainticebergstorage.dfs.core.windows.net/finance/bronze/sales_transactions",
+  "retention": {
+    "snapshotExpirationDays": 7,
+    "orphanFileDeletionEnabled": true,
+    "compaction": {
+      "enabled": true,
+      "targetFileSizeMB": 128
+    }
+  }
+}
