@@ -1,211 +1,203 @@
 import argparse
 import json
-import os
-import sys
 import logging
+import os
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 from pyspark.sql import SparkSession
- 
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    format='%(asctime)s %(levelname)s: %(message)s',
+    handlers=[logging.StreamHandler()]
 )
- 
-# Environment variables (with defaults)
+logger = logging.getLogger(__name__)
+
+# Environment variables
 APP_NAME = os.getenv("APP_NAME", "iceberg-maintenance")
 STORAGE_ACCOUNT = os.getenv("STORAGE_ACCOUNT", "bmdatalaketest")
 CONTAINER = os.getenv("CONTAINER", "mahesh")
-WAREHOUSE = os.getenv("WAREHOUSE", "default")
- 
-def configure_spark(catalog):
-    """Create Spark session with catalog-specific configuration"""
-    logging.info(f"Configuring Spark session for catalog: {catalog}")
-    return SparkSession.builder \
-        .appName(APP_NAME) \
-        .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
-        .config(f"spark.sql.catalog.{catalog}", "org.apache.iceberg.spark.SparkCatalog") \
-        .config(f"spark.sql.catalog.{catalog}.type", "hadoop") \
-        .config(f"spark.sql.catalog.{catalog}.warehouse",
-                f"abfss://{CONTAINER}@{STORAGE_ACCOUNT}.dfs.core.windows.net/{WAREHOUSE}") \
-        .getOrCreate()
- 
+
 def configure_azure_access(spark, sas_token):
-    """Configure Azure storage access for all operations"""
-    logging.info("Configuring Azure ADLS access for Spark")
-    spark.conf.set(f"fs.azure.account.auth.type.{STORAGE_ACCOUNT}.dfs.core.windows.net", "SAS")
-    spark.conf.set(f"fs.azure.sas.token.provider.type.{STORAGE_ACCOUNT}.dfs.core.windows.net",
-                   "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider")
-    spark.conf.set(f"fs.azure.sas.fixed.token.{STORAGE_ACCOUNT}.dfs.core.windows.net", sas_token.lstrip("?"))
- 
-def run_compaction(spark, table_ref, compaction_conf):
-    """Execute compaction using data product-level configuration"""
-    # All required fields must be present in config
-    strategy = compaction_conf["strategy"]
-    sort_order = compaction_conf.get("sort_order")
-    target_file_size_bytes = compaction_conf["target_file_size_bytes"]
-    min_input_files = compaction_conf["min_input_files"]
-    rewrite_all = compaction_conf["rewrite_all"]
-    max_concurrent_group_rewrites = compaction_conf["max_concurrent_group_rewrites"]
- 
-    options = [
-        f"'target-file-size-bytes', '{target_file_size_bytes}'",
-        f"'min-input-files', '{min_input_files}'",
-        f"'rewrite-all', '{str(rewrite_all).lower()}'",
-        f"'max-concurrent-file-group-rewrites', '{max_concurrent_group_rewrites}'"
-    ]
-    # Add optional partial progress options if present
-    if "partial_progress_enabled" in compaction_conf:
-        options.append(f"'partial-progress.enabled', '{str(compaction_conf['partial_progress_enabled']).lower()}'")
-    if "partial_progress_max_commits" in compaction_conf:
-        options.append(f"'partial-progress.max-commits', '{compaction_conf['partial_progress_max_commits']}'")
- 
-    strategy_clause = ""
-    if strategy == "sort" and sort_order:
-        strategy_clause = f"sort_order => '{sort_order}',"
- 
-    query = f"""
+    """Configure Azure access for Spark."""
+    spark.conf.set(
+        f"fs.azure.account.auth.type.{STORAGE_ACCOUNT}.dfs.core.windows.net", 
+        "SAS"
+    )
+    spark.conf.set(
+        f"fs.azure.sas.token.provider.type.{STORAGE_ACCOUNT}.dfs.core.windows.net",
+        "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider"
+    )
+    spark.conf.set(
+        f"fs.azure.sas.fixed.token.{STORAGE_ACCOUNT}.dfs.core.windows.net",
+        sas_token
+    )
+
+def extract_db_and_table(location):
+    """Extract database and table name from ABFS or HTTPS path."""
+    if location.startswith("https://"):
+        location = location.replace("https://", "abfss://", 1)
+    parsed = urlparse(location)
+    path_parts = parsed.path.strip('/').split('/')
+    if len(path_parts) < 2:
+        raise ValueError(f"Invalid path: {location}")
+    return path_parts[-2], path_parts[-1]
+
+def run_compaction(spark, table_ref, compaction_config):
+    """Run compaction with valid size parameters."""
+    strategy = compaction_config.get("strategy", "binpack")
+    max_file_size = compaction_config.get("maxfilesizebytes", 134217728)  # 128MB
+    target_file_size = max_file_size - 1048576  # 1MB buffer
+
+    options = {
+        'target-file-size-bytes': str(target_file_size),
+        'max-file-size-bytes': str(max_file_size),
+        'min-input-files': str(compaction_config.get("filecountthreshold", 50)),
+        'max-concurrent-file-group-rewrites': str(compaction_config.get("maxparalleltasks", 10)),
+        'rewrite-all': 'true'
+    }
+    
+    options_str = ",\n".join([f"'{k}', '{v}'" for k, v in options.items()])
+    
+    sql = f"""
         CALL {table_ref['catalog']}.system.rewrite_data_files(
             table => '{table_ref['database']}.{table_ref['table']}',
             strategy => '{strategy}',
-            {strategy_clause}
-            options => map({', '.join(options)})
+            options => map({options_str})
         )
     """
-    logging.info(f"Compacting {table_ref['catalog']}.{table_ref['database']}.{table_ref['table']}")
-    logging.debug(query)
-    spark.sql(query).show(truncate=False)
- 
-def expire_snapshots(spark, table_ref, snapshot_conf):
-    """Expire snapshots based on table-specific configuration"""
-    retention_days = snapshot_conf["retention_days"]
-    retain_last = snapshot_conf["retain_last"]
- 
-    # Validate retain_last to prevent Iceberg errors
-    if retain_last < 1:
-        raise ValueError("retain_last must be at least 1")
-    if not isinstance(retention_days, int):
-        raise TypeError("retention_days must be an integer")
- 
-    cutoff_time = datetime.now() - timedelta(days=retention_days)
-    cutoff_timestamp = cutoff_time.strftime("%Y-%m-%d %H:%M:%S")
- 
-    query = f"""
-        CALL {table_ref['catalog']}.system.expire_snapshots(
-            table => '{table_ref['database']}.{table_ref['table']}',
-            older_than => TIMESTAMP '{cutoff_timestamp}',
-            retain_last => {retain_last}
-        )
-    """
- 
-    logging.info(f"Expiring snapshots older than {cutoff_timestamp} (retain_last={retain_last}) for {table_ref['catalog']}.{table_ref['database']}.{table_ref['table']}")
- 
+    logger.info(f"Compacting {table_ref['database']}.{table_ref['table']}")
+    spark.sql(sql)
+
+def expire_snapshots(spark, table_name, location, snapshot_expiration_days):
+    """Expires snapshots based on retention days; -1 removes all except the latest."""
     try:
-        result = spark.sql(query)
-        if result.rdd.isEmpty():
-            logging.info("No snapshots matched expiration criteria")
-            return 0
-        deleted_files = result.select("deleted_data_files").first()[0]
-        expired_snapshots = result.select("expired_snapshot_id").collect()
-        logging.info(f"Expired {len(expired_snapshots)} snapshots and {deleted_files} data files")
-        result.show(truncate=False)
-        return deleted_files
+        db_name, tbl_name = extract_db_and_table(location)
+        full_table_name = f"{db_name}.{tbl_name}"
+
+        if snapshot_expiration_days < 0:
+            # Set cutoff to now: remove all snapshots older than the current time
+            cutoff_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            cutoff_timestamp = (
+                datetime.now() - timedelta(days=snapshot_expiration_days)
+            ).strftime("%Y-%m-%d %H:%M:%S")
+
+        spark.sql(f"""
+            CALL iceberg.system.expire_snapshots(
+                table => '{full_table_name}',
+                older_than => TIMESTAMP '{cutoff_timestamp}'
+            )
+        """)
+        logger.info(f"Snapshot expiration completed for {full_table_name}")
+        return True
     except Exception as e:
-        logging.error(f"Failed to expire snapshots: {str(e)}")
-        raise
- 
-def remove_orphan_files(spark, table_ref, orphan_conf):
-    retention_days = orphan_conf["retention_days"]
-    if not isinstance(retention_days, int):
-        raise TypeError("retention_days must be an integer")
-    cutoff_time = datetime.now() - timedelta(days=retention_days)
-    cutoff_timestamp = cutoff_time.strftime("%Y-%m-%d %H:%M:%S")
-    query = f"""
+        logger.error(f"Snapshot expiration failed for {table_name}: {str(e)}")
+        return False
+
+def process_snapshot_job(spark, config):
+    """Handles snapshot operations for multiple data products"""
+    results = {"success": [], "failed": []}
+    
+    # If config is not a list, wrap it in a list for robustness
+    data_products = config if isinstance(config, list) else [config]
+    
+    for dp in data_products:
+        data_product_name = dp.get("data_product", "unknown_product")
+        tables = dp.get("iceberg_tables", [])
+        for table_config in tables:
+            table_name = table_config.get("table_name", "unnamed_table")
+            if "snapshot_expiration_days" not in table_config:
+                logger.warning(f"Skipping {data_product_name}.{table_name} - no expiration policy")
+                results["failed"].append(f"{data_product_name}.{table_name}")
+                continue
+
+            success = expire_snapshots(
+                spark,
+                table_name,
+                table_config["location"],
+                table_config["snapshot_expiration_days"]
+            )
+            
+            if success:
+                results["success"].append(f"{data_product_name}.{table_name}")
+            else:
+                results["failed"].append(f"{data_product_name}.{table_name}")
+    
+    return results
+
+def remove_orphan_files(spark, table_ref, retention_days):
+    """Remove orphan files using Iceberg's remove_orphan_files."""
+    older_than = datetime.now() - timedelta(days=retention_days)
+    sql = f"""
         CALL {table_ref['catalog']}.system.remove_orphan_files(
             table => '{table_ref['database']}.{table_ref['table']}',
-            older_than => TIMESTAMP '{cutoff_timestamp}'
+            older_than => TIMESTAMP '{older_than.strftime('%Y-%m-%d %H:%M:%S')}'
         )
     """
-    logging.info(f"Cleaning orphans for {table_ref['catalog']}.{table_ref['database']}.{table_ref['table']}")
-    logging.debug(query)
-    spark.sql(query).show(truncate=False)
- 
-def process_table(spark, sas_token, data_product_conf, table_conf, job):
+    logger.info(f"Removing orphan files older than {retention_days} days")
+    spark.sql(sql)
+    return "success"
+
+def process_compaction(spark, config):
+    """Process compaction configuration."""
     try:
-        configure_azure_access(spark, sas_token)
+        default_location = "https://bmdatalaketest.dfs.core.windows.net/mahesh/data_product/table1/"
+        location = config.get("location", default_location)
+        db, table = extract_db_and_table(location)
         table_ref = {
-            "catalog": table_conf["catalog"],
-            "database": table_conf["database"],
-            "table": table_conf["table"]
+            "catalog": "iceberg",
+            "database": db,
+            "table": table
         }
-        maintenance = table_conf.get("maintenance", {})
-        if job == "compaction":
-            run_compaction(spark, table_ref, data_product_conf["compaction"])
-        elif job == "snapshot":
-            if "snapshot_expiration" in maintenance:
-                expire_snapshots(spark, table_ref, maintenance["snapshot_expiration"])
-            else:
-                logging.info(f"Snapshot expiration not configured for {table_ref['catalog']}.{table_ref['database']}.{table_ref['table']}")
-        elif job == "orphan":
-            if "orphan_cleanup" in maintenance:
-                remove_orphan_files(spark, table_ref, maintenance["orphan_cleanup"])
-            else:
-                logging.info(f"Orphan cleanup not configured for {table_ref['catalog']}.{table_ref['database']}.{table_ref['table']}")
+        run_compaction(spark, table_ref, config)
+        return {"status": "success", "table": f"{db}.{table}"}
     except Exception as e:
-        logging.error(f"Error processing {table_conf['catalog']}.{table_conf['database']}.{table_conf['table']}: {str(e)}", exc_info=True)
- 
-def validate_config(data_product_conf):
-    # Data product level
-    for field in ["name", "compaction", "tables"]:
-        if field not in data_product_conf:
-            raise ValueError(f"Missing '{field}' in data product config.")
- 
-    # Compaction required fields
-    for field in ["strategy", "target_file_size_bytes", "min_input_files", "rewrite_all", "max_concurrent_group_rewrites"]:
-        if field not in data_product_conf["compaction"]:
-            raise ValueError(f"Missing '{field}' in compaction config.")
- 
-    # Tables and maintenance
-    for table in data_product_conf["tables"]:
-        for field in ["catalog", "database", "table", "maintenance"]:
-            if field not in table:
-                raise ValueError(f"Missing '{field}' in table config.")
-        maintenance = table["maintenance"]
-        if "snapshot_expiration" in maintenance:
-            for field in ["retention_days", "retain_last"]:
-                if field not in maintenance["snapshot_expiration"]:
-                    raise ValueError(f"Missing '{field}' in snapshot_expiration config.")
-        if "orphan_cleanup" in maintenance:
-            if "retention_days" not in maintenance["orphan_cleanup"]:
-                raise ValueError("Missing 'retention_days' in orphan_cleanup config.")
- 
+        logger.error(f"Compaction failed: {str(e)}")
+        return {"status": "failed", "error": str(e)}
+
+
+WAREHOUSE = os.getenv("WAREHOUSE", "default")
 def main():
-    parser = argparse.ArgumentParser(description='Iceberg Maintenance for Single Data Product')
+    parser = argparse.ArgumentParser(description='Iceberg Table Maintenance')
     parser.add_argument('--sas-token', required=True, help='SAS token for ADLS access')
-    parser.add_argument('--config', required=True, help='Path to data product config file')
-    parser.add_argument('--job', choices=['compaction', 'snapshot', 'orphan'], required=True,
-                        help='Maintenance job to run: compaction, snapshot, or orphan')
+    parser.add_argument('--config', required=True, help='JSON config string')
+    parser.add_argument('--job', choices=['compaction','snapshot'], required=True)
+    parser.add_argument('--output', default="results.json", help='Output file path')
     args = parser.parse_args()
- 
+
+    spark = SparkSession.builder \
+        .appName(APP_NAME) \
+        .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
+        .config("spark.sql.catalog.iceberg", "org.apache.iceberg.spark.SparkCatalog") \
+        .config("spark.sql.catalog.iceberg.type", "hadoop") \
+        .config("spark.sql.catalog.iceberg.warehouse", f"abfss://{CONTAINER}@{STORAGE_ACCOUNT}.dfs.core.windows.net/") \
+        .config("spark.jars.packages", ",".join([
+            "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.8.0",
+            "org.apache.hadoop:hadoop-azure:3.3.1"
+        ])) \
+        .getOrCreate()
+    configure_azure_access(spark, args.sas_token)
+
     try:
-        # with open(args.config, 'r') as f:
-        #     data_product_conf = json.loads(f)
-        data_product_conf = json.loads(args.config)
-        validate_config(data_product_conf)
+        config = json.loads(args.config)
+        results = []
+
+        if args.job == "compaction":
+            results.append(process_compaction(spark, config))
+        elif args.job == "snapshot":
+            results = process_snapshot_job(spark, config)
+
+        with open(args.output, "w") as f:
+            json.dump(results, f, indent=2)
+        logger.info(f"Results saved to {args.output}")
+
     except Exception as e:
-        logging.error(f"Error loading or validating config file: {str(e)}")
-        sys.exit(1)
- 
-    logging.info(f"Processing data product: {data_product_conf.get('name', 'unknown')}")
-    for table in data_product_conf["tables"]:
-        logging.info(f"  Table: {table['catalog']}.{table['database']}.{table['table']}")
-        spark = configure_spark(table["catalog"])
-        try:
-            process_table(spark, args.sas_token, data_product_conf, table, args.job)
-        finally:
-            spark.stop()
-            logging.info("    Spark session closed\n")
- 
+        logger.error(f"Main process failed: {str(e)}")
+        raise
+    finally:
+        spark.stop()
+
 if __name__ == "__main__":
     main()
