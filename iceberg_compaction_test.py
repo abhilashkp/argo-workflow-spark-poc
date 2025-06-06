@@ -164,7 +164,7 @@ def main():
     parser.add_argument('--sas-token', required=True, help='SAS token for ADLS access')
     parser.add_argument('--config', required=True, help='JSON config string')
     parser.add_argument('--job', choices=['compaction','snapshot'], required=True)
-    parser.add_argument('--output', default="results.json", help='Output file path')
+#    parser.add_argument('--output', default="results.json", help='Output file path')
     args = parser.parse_args()
 
     spark = SparkSession.builder \
@@ -189,9 +189,9 @@ def main():
         elif args.job == "snapshot":
             results = process_snapshot_job(spark, config)
 
-        with open(args.output, "w") as f:
-            json.dump(results, f, indent=2)
-        logger.info(f"Results saved to {args.output}")
+#        with open(args.output, "w") as f:
+#            json.dump(results, f, indent=2)
+#        logger.info(f"Results saved to {args.output}")
 
     except Exception as e:
         logger.error(f"Main process failed: {str(e)}")
