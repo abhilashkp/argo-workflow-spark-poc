@@ -201,6 +201,11 @@ def create_spark_session(args, storage_config: Dict[str, str]) -> SparkSession:
         .config(f"spark.sql.catalog.{catalog_name}", "org.apache.iceberg.spark.SparkCatalog")
         .config(f"spark.sql.catalog.{catalog_name}.type", args.catalog_type)
         .config(f"spark.sql.catalog.{catalog_name}.warehouse", f"abfss://{storage_config['container']}@{storage_config['storage_account']}.dfs.core.windows.net/{args.data_product}")
+        # Fix Derby database directory issue
+        .config("javax.jdo.option.ConnectionURL", "jdbc:derby:memory:metastore_db;create=true")
+        .config("javax.jdo.option.ConnectionDriverName", "org.apache.derby.jdbc.EmbeddedDriver")
+        .config("spark.sql.warehouse.dir", "/tmp/spark-warehouse")
+        .config("spark.hadoop.javax.jdo.option.ConnectionURL", "jdbc:derby:memory:metastore_db;create=true")
     )
     
     # Add REST catalog specific configuration (for Polaris)
@@ -230,7 +235,7 @@ def create_iceberg_table(args):
     # Get storage configuration
     storage_config = get_storage_config()
     print(f"📦 Storage Config - Account: {storage_config.get('storage_account')}, Container: {storage_config.get('container')}")
-    print(f"🔐 SAS Token: {args.sas_token[:20]}..." if args.sas_token else "❌ No SAS token provided")
+    print(f"🔐 SAS Token: {args.sas_token[:20]}..." if args.sas_token else "❌ No SAS token provided"
     
     # Parse schema and partitions
     schema_fields = parse_schema_fields(args)
@@ -245,6 +250,16 @@ def create_iceberg_table(args):
     spark = create_spark_session(args, storage_config)
     
     try:
+        # Create namespace if it doesn't exist (for REST catalogs like Polaris)
+        if args.catalog_type == "rest":
+            try:
+                print(f"🔧 Creating namespace {args.catalog_name}.{args.database} if not exists...")
+                spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {args.catalog_name}.{args.database}")
+                print(f"✅ Namespace {args.catalog_name}.{args.database} ready")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not create namespace: {str(e)}")
+                # Continue anyway - namespace might already exist
+        
         # Build CREATE TABLE statement
         full_table_name = f"{args.catalog_name}.{args.database}.{args.table}"
         schema_ddl = build_schema_ddl(schema_fields)
