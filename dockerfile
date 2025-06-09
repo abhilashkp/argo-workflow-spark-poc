@@ -59,6 +59,7 @@ USER spark:spark
 ADD write_jobhistory_to_adls.py /opt/spark/pyscripts/src/write_jobhistory_to_adls.py
 ADD iceberg_compaction_test.py /opt/spark/pyscripts/src/iceberg_compaction_test.py
 ADD create_iceberg_table_from_json.py /opt/spark/pyscripts/src/create_iceberg_table_from_json.py
+ADD create_iceberg_table-polaris.py /opt/spark/pyscripts/src/create_iceberg_table-polaris.py
 
 WORKDIR /app
 
