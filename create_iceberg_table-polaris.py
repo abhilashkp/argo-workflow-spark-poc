@@ -235,7 +235,7 @@ def create_iceberg_table(args):
     # Get storage configuration
     storage_config = get_storage_config()
     print(f"📦 Storage Config - Account: {storage_config.get('storage_account')}, Container: {storage_config.get('container')}")
-    print(f"🔐 SAS Token: {args.sas_token[:20]}..." if args.sas_token else "❌ No SAS token provided"
+    print(f"🔐 SAS Token: {args.sas_token[:20]}..." if args.sas_token else "❌ No SAS token provided")
     
     # Parse schema and partitions
     schema_fields = parse_schema_fields(args)
